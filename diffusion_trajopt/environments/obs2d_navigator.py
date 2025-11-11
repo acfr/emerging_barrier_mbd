@@ -151,17 +151,11 @@ class ObstacleNavigator(eqx.Module):
         position_cost = jnp.linalg.norm(state.position - self.target_position)
         action_cost = jnp.linalg.norm(action) / 10
 
-        # base_cost = position_cost + action_cost
-        #
-        # # Add collision penalty
-        # sdf_value = self.sdf_fn(state)
-        # collision_penalty = jnp.where(sdf_value <= 0, 1000.0, 0.0)
-        # total_cost = base_cost + collision_penalty
-        #
-        # # Convert boolean to JAX array for conditional logic
-        # zero_cost_flag = jnp.array(self.zero_cost_col, dtype=jnp.bool_)
-        # result = jnp.where(zero_cost_flag, 0.0, total_cost)
-        return position_cost + action_cost
+        # Add collision penalty
+        sdf_value = self.sdf_fn(state)
+        collision_penalty = jnp.where(sdf_value <= 0, 10.0, 0.0)[0]
+        total_cost = action_cost + position_cost + collision_penalty
+        return total_cost
 
     def terminal_cost(self, state: NavigatorState) -> jax.Array:
         """Calculate terminal cost."""

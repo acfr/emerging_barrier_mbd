@@ -5,16 +5,16 @@ Code release for ["EB-MBD: Emerging-Barrier Model-Based Diffusion for Safe Traje
 ![EB-MBD for UVMS](assets/ebmbd.gif)
 
 # Installation
-Follow instructions to install [poetry](https://python-poetry.org/) and run
+Follow instructions to install [uv](https://docs.astral.sh/uv/getting-started/installation/) and run
 ```
-poetry install
+uv sync
 ```
 
 Test everything works by running on 2D obstacle avoidance problem
 ```
 mkdir results
 cd results
-poetry run python3 ../scripts/obs2d_trajopt.py comparison
+uv run python3 ../scripts/obs2d_trajopt.py comparison
 ```
 
 # Cite

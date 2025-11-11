@@ -67,18 +67,22 @@ if __name__ == "__main__":
         "step_size": 0.40,
         "obstacles": True,
         "target_position": jnp.array([3.0, 5.0]),
-        "obstacle_config": {"radius": 0.50},
+        "obstacle_config": {"radius": 0.60},
     }
     # Low constraint radius
     kwargs_lc = kwargs.copy()
     kwargs_lc["obstacle_config"] = {"radius": 0.45}
 
-    horizon = 50
+    horizon = 55
     sys = ObstacleNavigator(rng, **kwargs)
     sys_lc = ObstacleNavigator(rng, **kwargs_lc)
 
     opt = DiffusionOptimiser(
-        temperature=0.1, optimisation_steps=100, sample_size=440, store_history=True, noise=True
+        temperature=0.1,
+        optimisation_steps=100,
+        sample_size=440,
+        store_history=True,
+        noise=True,
     )
 
     step = jax.jit(lambda s, a: sys.step(s, a))
@@ -95,34 +99,64 @@ if __name__ == "__main__":
     trajopt = DiffusionTrajOpt(opt, sys, horizon, mu=10)
     normalising_factor = 5
     barrier_args = {
-        "emerging_barrier" : args.algo == "ebmbd",
-        "normalising_factor" : normalising_factor,
-        "violation_higher_bound" : 0.8,
-        "alpha" : 0.4,
+        "emerging_barrier": args.algo == "ebmbd",
+        "normalising_factor": normalising_factor,
+        "violation_higher_bound": 0.8,
+        "alpha": 0.4,
     }
     actions = jax.vmap(
-        lambda *x: trajopt.optimise_trajectory(
-            *x, **barrier_args),
-        in_axes=(None, 0)
+        lambda *x: trajopt.optimise_trajectory(*x, **barrier_args), in_axes=(None, 0)
     )(state_init, jnp.arange(start_seed, start_seed + num))
 
-
     traj, _, _ = jax.vmap(rollout, in_axes=(None, 0))(state_init, actions)
-    actions = tuple(trajopt._reshape_normalise_act(hist.Y_i.val, normalising_factor, True) for hist in trajopt.optimiser.state_history)
+    actions = tuple(
+        trajopt._reshape_normalise_act(hist.Y_i.val, normalising_factor, True)
+        for hist in trajopt.optimiser.state_history
+    )
     actions_stacked = np.concatenate(actions)
     rollout_vmap = jax.vmap(rollout, in_axes=(None, 0))
     trajs = tuple(rollout_vmap(state_init, actions) for actions in actions)
     trajs_stacked = np.concatenate(tuple(traj[0].position for traj in trajs))
-    costs_stacked = np.concatenate(tuple(np.sum(traj[1],axis=1) + traj[2] for traj in trajs))
+    costs_stacked = np.concatenate(
+        tuple(np.sum(traj[1], axis=1) + traj[2] for traj in trajs)
+    )
 
-    np.save("actions.npy", actions_stacked)
-    np.save("trajectories.npy", trajs_stacked)
-    np.save("costs.npy", costs_stacked)
+    np.savez(
+        "dataset.npz",
+        actions=actions_stacked,
+        trajectories=trajs_stacked,
+        costs=costs_stacked,
+        obstacle_x_y_radius=sys.get_obstacles(),
+        target_position=kwargs["target_position"],
+        starting_position=state_init.position,
+        cost_code="""
 
-    # for hist in trajopt.optimiser.state_history:
-    #     new_actions = trajopt._reshape_normalise_act(hist.Y_i.val, normalising_factor, True)
-        # traj, _, _ = jax.vmap(rollout, in_axes=(None, 0))(state_init, actions)
-        # fig, ax = render_multiple_trajectories(
-        #     traj, sys.target_position, sys.get_obstacles(), horizontal=True
-        # )
-        # plt.show()
+    def stage_cost(self, state: NavigatorState, action: jax.Array) -> jax.Array:
+        # Calculate stage cost for a single step
+        # Base cost is distance to target
+        position_cost = jnp.linalg.norm(state.position - self.target_position)
+        action_cost = jnp.linalg.norm(action) / 10
+
+        # Add collision penalty
+        sdf_value = self.sdf_fn(state)
+        collision_penalty = jnp.where(sdf_value <= 0, 10.0, 0.0)[0]
+        total_cost = action_cost + position_cost + collision_penalty
+        return total_cost
+
+    def terminal_cost(self, state: NavigatorState) -> jax.Array:
+        # Calculate terminal cost.
+        return self.stage_cost(state, jnp.array([0.0, 0.0]))*20
+        """
+    )
+    #
+    # for i, hist in enumerate(trajopt.optimiser.state_history):
+    #     if i % 5 != 0:
+    #         continue
+    #     new_actions = trajopt._reshape_normalise_act(
+    #         hist.Y_i.val, normalising_factor, True
+    #     )
+    #     traj, _, _ = jax.vmap(rollout, in_axes=(None, 0))(state_init, new_actions)
+    #     fig, ax = render_multiple_trajectories(
+    #         traj, sys.target_position, sys.get_obstacles(), horizontal=True
+    #     )
+    #     plt.show()
