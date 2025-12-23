@@ -3,14 +3,14 @@ name = "diffusion_trajopt"
 version = "0.1.0"
 description = ""
 authors = [{ name = "Raghav Mishra", email = "raghav.mishra@sydney.edu.au" }]
-requires-python = ">=3.12,<4.0"
+requires-python = ">=3.12,<3.14"
 readme = "README.md"
 dependencies = [
-    "jax[cuda12]==0.5",
+    "jax[cuda12]",
     "flax>0.9.0",
     "matplotlib>=3.9.2,<4",
-    "mujoco>=3.3.3",
-    "mujoco-mjx>=3.3.3",
+    "mujoco>=3.3",
+    "mujoco-mjx>=3.3",
     "jupyterlab>4.2.5",
     "tqdm>4.66.5",
     "cvxopt>=1.3.2,<2",
@@ -22,6 +22,7 @@ dependencies = [
     "jax-tqdm>=0.4.0,<0.5",
     "kitcat>=1.2.1,<2",
     "matplotloom>=0.9.1,<0.10",
+    "reach-mjx",
 ]
 
 [project.optional-dependencies]
@@ -36,7 +37,7 @@ reach = ["reach-mjx"]
 default-groups = ["reach"]
 
 [tool.uv.sources]
-reach-mjx = { path = "../reach-mjx" }
+reach-mjx = { path = "../reach-mjx", editable = true }
 
 [build-system]
 requires = ["hatchling"]

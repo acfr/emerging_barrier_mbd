@@ -3,11 +3,9 @@ import functools
 import jax
 import jax.numpy as jnp
 
-from enum import Enum
-
 from .diffusion_opt import DiffusionOptimiser
 from .emerging_barrier import emerging_barrier_cost, EmergingBarrierParams
-from .transcription import DirectTranscription
+from .transcription import DirectTranscription, SplineTranscription
 
 
 @jax.jit
@@ -37,10 +35,11 @@ class DiffusionTrajOpt:
         self.optimiser = diff_optimiser
         self.N_horizon = horizon_length
         self.action_dim = env.action_size
-        self.transcription = DirectTranscription(horizon_length, env.action_size)
+        self.transcription = SplineTranscription(horizon_length, env.action_size, 30)
         self.opt_state_shape = (self.N_horizon, self.action_dim)
         self.env = env
         self.mu = mu
+        self.rollout = jax.jit(functools.partial(rollout_env, self.env))
 
     def _reshape_normalise_act(self, actions, factor, batch=False):
         if not batch:
@@ -58,7 +57,6 @@ class DiffusionTrajOpt:
         return_full=False,
         projection_fn=None,
     ):
-        rollout = jax.jit(functools.partial(rollout_env, self.env))
         if not emerging_barrier:
             print("Using naive direct transcription cost")
 
@@ -94,7 +92,7 @@ class DiffusionTrajOpt:
         @jax.jit
         def diffopt_cost_wrapper(opt_state, prog):
             actions = self.transcription.transcribe(opt_state) / normalising_factor
-            states, stage_costs, terminal_cost = rollout(init_state, actions)
+            states, stage_costs, terminal_cost = self.rollout(init_state, actions)
             dists = states.contact.dist
             return total_cost(stage_costs, terminal_cost, dists, prog)
 

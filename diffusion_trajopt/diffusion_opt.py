@@ -19,7 +19,9 @@ from diffusion_trajopt.diffusion_utils import (
 
 
 DiffusionState = namedtuple(
-    "DiffusionState", ["i", "Y_i", "rng_key", "mean_cost", "constraint_violations", "samples"])
+    "DiffusionState",
+    ["i", "Y_i", "rng_key", "mean_cost", "constraint_violations", "samples"],
+)
 
 
 class DiffusionOptimiser:
@@ -43,12 +45,7 @@ class DiffusionOptimiser:
         self.noise = noise
 
     def reverse_process(
-        self,
-        fun,
-        state_shape,
-        seed,
-        projection=None, 
-        return_full=False
+        self, fun, state_shape, seed, projection=None, return_full=False
     ):
         self.state_history = []
 
@@ -58,9 +55,14 @@ class DiffusionOptimiser:
         _, rng_key = random.split(rng_key)
 
         # breakpoint()
-        state = DiffusionState(Y_i=Y_1, i=num_steps,
-                               rng_key=rng_key, mean_cost=0,
-                               constraint_violations=0, samples=jnp.zeros((self.sample_size,) + state_shape))
+        state = DiffusionState(
+            Y_i=Y_1,
+            i=num_steps,
+            rng_key=rng_key,
+            mean_cost=0,
+            constraint_violations=0,
+            samples=jnp.zeros((self.sample_size,) + state_shape),
+        )
         jitted_reverse_step = jax.jit(
             functools.partial(
                 self.reverse_step,
@@ -70,7 +72,7 @@ class DiffusionOptimiser:
                 sample_size=self.sample_size,
                 temperature=self.temperature,
                 projection=projection,
-                noise=self.noise
+                noise=self.noise,
             )
         )
 
@@ -82,13 +84,12 @@ class DiffusionOptimiser:
             # plt.plot(state.constraint_violations)
             return state.Y_i
 
-
         @loop_tqdm(num_steps)
         def loop_fun(i, val):
             return jitted_reverse_step(val)
 
         state = jax.lax.fori_loop(0, num_steps, loop_fun, state)
-        
+
         if return_full:
             return state
 
@@ -130,22 +131,18 @@ class DiffusionOptimiser:
         # Guard against Js being all infty
         weights = jax.lax.cond(
             jnp.all(jnp.isnan(weights)),
-            lambda: jnp.ones_like(weights)/len(weights),
+            lambda: jnp.ones_like(weights) / len(weights),
             lambda: weights,
         )
         # weights = jnp.nan_to_num(weights)
         Y_bar_0 = jnp.einsum("n,ni->i", weights, curl_Y)
 
         score_approx = (
-            1 / (1 - alpha_bar_i) * (-carry.Y_i +
-                                     jnp.sqrt(alpha_bar_i) * Y_bar_0)
+            1 / (1 - alpha_bar_i) * (-carry.Y_i + jnp.sqrt(alpha_bar_i) * Y_bar_0)
         )
         # breakpoint()
         z = random.normal(key=carry.rng_key, shape=(len(carry.Y_i),))
-        Y_i = (
-            1 / jnp.sqrt(alpha_i) * (carry.Y_i +
-                                     (1 - alpha_bar_i) * score_approx)
-        )
+        Y_i = 1 / jnp.sqrt(alpha_i) * (carry.Y_i + (1 - alpha_bar_i) * score_approx)
 
         if noise:
             Y_i = Y_i + jnp.sqrt(1 - alpha_i) * z
@@ -161,4 +158,3 @@ class DiffusionOptimiser:
             constraint_violations=constraint_violations,
             samples=curl_Y,
         )
-
