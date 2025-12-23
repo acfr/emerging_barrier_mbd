@@ -3,7 +3,6 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from random import randint
 from diffusion_trajopt.diffusion_opt import DiffusionOptimiser
-from diffusion_trajopt.utils import rollout_us
 from diffusion_trajopt.trajopt import DiffusionTrajOpt, rollout_env
 from reach_mjx.alpha_bluerov_brax_env import ReachArm
 from reach_mjx.viser_viz import ReachEnvViz
